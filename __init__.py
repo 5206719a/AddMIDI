@@ -386,7 +386,7 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
 
     def execute(self, context):
         context.window_manager.modal_handler_add(self)
-        self._timer = context.window_manager.event_timer_add(bpy.context.window_manager.rate/1000, context.window)
+        self._timer = context.window_manager.event_timer_add(bpy.context.window_manager.rate/1000, window=context.window)
         context.window_manager.addmidi_running = "Running"
         return {'RUNNING_MODAL'}
 
@@ -473,7 +473,7 @@ class AddMIDI_StopButton(bpy.types.Operator):
         return{'FINISHED'}
 
 
-class AddMIDI_StopButton(bpy.types.Operator):
+class AddMIDI_RefreshDevices(bpy.types.Operator):
     bl_idname = "addmidi.refresh_devices"
     bl_label = "Refresh the list of MIDI devices"
      
@@ -742,7 +742,9 @@ cls = (AddMIDI_ModalTimer,
         AddMIDI_UIPanel,
         AddMIDI_StartButton,
         AddMIDI_StopButton,
+        AddMIDI_RefreshDevices,
         AddMIDI_list_as_text,
+        AddMIDI_text_to_list,
         AddMIDI_Import_KS_button,
       )
 
