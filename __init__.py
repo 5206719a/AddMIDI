@@ -56,9 +56,9 @@
 
 bl_info = {
     "name": "AddMIDI",
-    "author": "JPfeP",
-    "version": (0, 9),
-    "blender": (2, 7, 1),
+    "author": "JPfeP (iwkse port)",
+    "version": (1, 0),
+    "blender": (2, 80, 0),
     "location": "",
     "description": "MIDI for Blender",
     "warning": "",
@@ -72,8 +72,10 @@ import sys
 
 from sys import exit
 from select import select
-from bpy.utils import register_module, unregister_module
+from bpy.utils import register_class, unregister_class
 from bpy.app.handlers import persistent
+from bl_ui.space_userpref import PreferencePanel
+
 import time
 
 import os
@@ -394,14 +396,15 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
         return {'CANCELLED'}
   
     
-class AddMIDI_UIPanel(bpy.types.Panel):
-    bl_label = "AddMIDI"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "TOOLS"
-    bl_category = "AddMIDI"
+class AddMIDI_UIPanel(PreferencePanel):
+    bl_label = 'MIDI'
        
-    def draw(self, context):
-        layout = self.layout
+    @classmethod
+    def poll(cls, context):
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM')
+
+    def draw_props(self, context, layout):
         col = layout.column(align=True)
         col.label(text="MIDI Settings:")
         row = col.row(align=True)
@@ -644,13 +647,13 @@ class AddMIDI_Import_KS_button(bpy.types.Operator):
         def upd_max(self, context):    
             if self.max <= self.min:
                 self.max = self.max + 1 
-        name = bpy.props.StringProperty(name="Key", default="Unknown")
-        channel = bpy.props.IntProperty(name="Channel", min=1, max=16, default=1)
-        controller = bpy.props.IntProperty(name="Controller number", min=1, max=128, default=1)
-        controller14 = bpy.props.IntProperty(name="Controller number", min=1, max=16384, default=1)
-        min = bpy.props.IntProperty(name="Min", default=0, update=upd_min)
-        max = bpy.props.IntProperty(name="Max", default=127, update=upd_max)
-        cont_type = bpy.props.EnumProperty(name = "Event type", items = MIDI_list_enum)
+        name : bpy.props.StringProperty(name="Key", default="Unknown")
+        channel : bpy.props.IntProperty(name="Channel", min=1, max=16, default=1)
+        controller : bpy.props.IntProperty(name="Controller number", min=1, max=128, default=1)
+        controller14 : bpy.props.IntProperty(name="Controller number", min=1, max=16384, default=1)
+        min : bpy.props.IntProperty(name="Min", default=0, update=upd_min)
+        max : bpy.props.IntProperty(name="Max", default=127, update=upd_max)
+        cont_type : bpy.props.EnumProperty(name = "Event type", items = MIDI_list_enum)
     bpy.utils.register_class(Scene_MIDI_Items) #necessary ?
     
     bpy.types.Scene.MIDI_keys = bpy.props.CollectionProperty(type=Scene_MIDI_Items)
@@ -735,12 +738,22 @@ def addmidi_handler(scene):
             if bpy.context.window_manager.autorun == True:
                 bpy.ops.addmidi.start()    
 
+cls = (AddMIDI_ModalTimer,
+        AddMIDI_UIPanel,
+        AddMIDI_StartButton,
+        AddMIDI_StopButton,
+        AddMIDI_list_as_text,
+        AddMIDI_Import_KS_button,
+      )
+
 def register():
-    bpy.utils.register_module(__name__)
+    for c in cls:
+        register_class(c)
     bpy.app.handlers.load_post.append(addmidi_handler)
     
 def unregister():
-    bpy.utils.unregister_module(__name__)
+    for c in cls:
+        unregister_class(c)
  
 if __name__ == "__main__": 
     register()
