@@ -74,7 +74,6 @@ from sys import exit
 from select import select
 from bpy.utils import register_class, unregister_class
 from bpy.app.handlers import persistent
-from rna_prop_ui import PropertyPanel
 from bl_ui.space_userpref import PreferencePanel
 from bl_ui.properties_scene import SceneKeyingSetsPanel
 from bl_ui.properties_scene import SceneButtonsPanel
@@ -204,8 +203,8 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
                     message, deltatime = msg
                     
                     #Uncomment to debug incoming messages
-                    timer += deltatime
-                    print("In :"+"@%0.6f %r" % (timer, message))
+#                    timer += deltatime
+#                    print("In :"+"@%0.6f %r" % (timer, message))
                     
                     msg = midiin.get_message()   #why this line is necessary (if not, infinite loop) ?
                    
