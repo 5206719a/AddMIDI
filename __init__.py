@@ -174,7 +174,7 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
     _timer = None 
     
     bpy.types.WindowManager.addmidi_running = bpy.props.StringProperty(default="Stopped")
-            
+ 
     def modal(self, context, event):
         
         global tempo
@@ -433,8 +433,12 @@ class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
 
         layout.label(text="MIDI Options")
         layout.separator()
+
         # Midi options
-        
+        row = layout.row() 
+        row.operator("addmidi.start", text='Start')
+        row.operator("addmidi.stop", text='Stop')
+        layout.prop(bpy.context.window_manager, "addmidi_running", text="Status")
         layout.operator("addmidi.importks", text='Import Keying Set')   
         col2 = layout.column(align=True)
         row2 = col2.row(align=True)
@@ -471,9 +475,6 @@ class AddMIDI_UIPanel(PreferencePanel):
         col = layout.column(align=True)
         col.label(text="MIDI Settings:")
         row = col.row(align=True)
-        row.operator("addmidi.start", text='Start')
-        row.operator("addmidi.stop", text='Stop')
-        layout.prop(bpy.context.window_manager, "addmidi_running", text="Status")
         layout.prop(bpy.context.window_manager , "midi_in_device", text="Midi In")
         layout.prop(bpy.context.window_manager , "midi_out_device", text="Midi Out")
         layout.operator("addmidi.refresh_devices", text='Refresh the MIDI Devices List')
@@ -780,7 +781,7 @@ def addmidi_handler(scene):
             if bpy.context.window_manager.autorun == True:
                 bpy.ops.addmidi.start()    
 
-cls = (AddMIDI_ModalTimer,
+cls = ( AddMIDI_ModalTimer,
         AddMIDI_UIPanel,
         AddMIDI_StartButton,
         AddMIDI_StopButton,
