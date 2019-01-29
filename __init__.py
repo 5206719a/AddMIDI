@@ -74,8 +74,12 @@ from sys import exit
 from select import select
 from bpy.utils import register_class, unregister_class
 from bpy.app.handlers import persistent
+from rna_prop_ui import PropertyPanel
 from bl_ui.space_userpref import PreferencePanel
+from bl_ui.properties_scene import SceneKeyingSetsPanel
+from bl_ui.properties_scene import SceneButtonsPanel
 
+from bpy.types import Panel
 import time
 
 import os
@@ -200,11 +204,11 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
                     message, deltatime = msg
                     
                     #Uncomment to debug incoming messages
-                    #timer += deltatime
-                    #print("In :"+"@%0.6f %r" % (timer, message))
+                    timer += deltatime
+                    print("In :"+"@%0.6f %r" % (timer, message))
                     
                     msg = midiin.get_message()   #why this line is necessary (if not, infinite loop) ?
-                    
+                   
                     ''' LATER, MIDI Sync mode:           
                     #For the MIDI clock
                     if running_status== 1 and message[0] == 248:
@@ -395,28 +399,43 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
         context.window_manager.addmidi_running = "Stopped"
         return {'CANCELLED'}
   
-    
-class AddMIDI_UIPanel(PreferencePanel):
-    bl_label = 'MIDI'
-       
-    @classmethod
-    def poll(cls, context):
-        prefs = context.preferences
-        return (prefs.active_section == 'SYSTEM')
+class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
+    bl_label = "Keying Sets"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
 
-    def draw_props(self, context, layout):
-        col = layout.column(align=True)
-        col.label(text="MIDI Settings:")
-        row = col.row(align=True)
-        row.operator("addmidi.start", text='Start')
-        row.operator("addmidi.stop", text='Stop')
-        layout.prop(bpy.context.window_manager, "addmidi_running", text="Status")
-        layout.prop(bpy.context.window_manager , "midi_in_device", text="Midi In")
-        layout.prop(bpy.context.window_manager , "midi_out_device", text="Midi Out")
-        layout.operator("addmidi.refresh_devices", text='Refresh the MIDI Devices List')
-        layout.prop(bpy.context.window_manager , "rate", text="Update rate(ms)")
-        layout.prop(bpy.context.window_manager , "autorun", text="Start at launch")
+    def draw(self, context):
+        layout = self.layout
+
+        scene = context.scene
+
+        row = layout.row()
+
+        col = row.column()
+        col.template_list("UI_UL_list", "keying_sets", scene, "keying_sets", scene.keying_sets, "active_index", rows=1)
+
+        col = row.column(align=True)
+        col.operator("anim.keying_set_add", icon='ADD', text="")
+        col.operator("anim.keying_set_remove", icon='REMOVE', text="")
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
+
+        flow = layout.grid_flow(row_major=False, columns=0, even_columns=False, even_rows=False, align=False)
+
+        ks = scene.keying_sets.active
+        if ks and ks.is_path_absolute:
+            col = flow.column()
+            col.prop(ks, "bl_description")
+
+            subcol = flow.column()
+            subcol.operator_context = 'INVOKE_DEFAULT'
+            subcol.operator("anim.keying_set_export", text="Export to File").filepath = "keyingset.py"
+
+        layout.label(text="MIDI Options")
         layout.separator()
+        # Midi options
+        
         layout.operator("addmidi.importks", text='Import Keying Set')   
         col2 = layout.column(align=True)
         row2 = col2.row(align=True)
@@ -438,6 +457,30 @@ class AddMIDI_UIPanel(PreferencePanel):
             row3 = col3.row(align=True)
             row3.prop(item, 'min')
             row3.prop(item, 'max')
+
+
+  
+class AddMIDI_UIPanel(PreferencePanel):
+    bl_label = 'MIDI'
+       
+    @classmethod
+    def poll(cls, context):
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM')
+
+    def draw_props(self, context, layout):
+        col = layout.column(align=True)
+        col.label(text="MIDI Settings:")
+        row = col.row(align=True)
+        row.operator("addmidi.start", text='Start')
+        row.operator("addmidi.stop", text='Stop')
+        layout.prop(bpy.context.window_manager, "addmidi_running", text="Status")
+        layout.prop(bpy.context.window_manager , "midi_in_device", text="Midi In")
+        layout.prop(bpy.context.window_manager , "midi_out_device", text="Midi Out")
+        layout.operator("addmidi.refresh_devices", text='Refresh the MIDI Devices List')
+        layout.prop(bpy.context.window_manager , "rate", text="Update rate(ms)")
+        layout.prop(bpy.context.window_manager , "autorun", text="Start at launch")
+        
 
     def upd_trick_autorun(self,context):
         upd_setting_0()
@@ -745,6 +788,7 @@ cls = (AddMIDI_ModalTimer,
         AddMIDI_RefreshDevices,
         AddMIDI_list_as_text,
         AddMIDI_text_to_list,
+        SCENE_PT_keying_sets,
         AddMIDI_Import_KS_button,
       )
 
