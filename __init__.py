@@ -74,7 +74,6 @@ from sys import exit
 from select import select
 from bpy.utils import register_class, unregister_class
 from bpy.app.handlers import persistent
-from bl_ui.space_userpref import PreferencePanel
 from bl_ui.properties_scene import SceneKeyingSetsPanel
 from bl_ui.properties_scene import SceneButtonsPanel
 
@@ -166,6 +165,32 @@ def upd_setting_3():
 def clamp(minimum, x, maximum):
     return max(minimum, min(x, maximum))        
 
+def get_name(note_int):
+    if note_int % 12 == 0:
+        return 'DO'
+    if note_int % 12 == 1:
+        return 'DO# | REb'
+    if note_int % 12 == 2:
+        return 'RE'
+    if note_int % 12 == 3:
+        return 'RE# | MIb'
+    if note_int % 12 == 4:
+        return 'MI'
+    if note_int % 12 == 5:
+        return 'FA'
+    if note_int % 12 == 6:
+        return 'FA# | SOLb'
+    if note_int % 12 == 7:
+        return 'SOL'
+    if note_int % 12 == 8:
+        return 'SOL# | LAb'
+    if note_int % 12 == 9:
+        return 'LA'
+    if note_int % 12 == 10:
+        return 'LA# | SIb'
+    if note_int % 12 == 11:
+        return 'SI'
+
 class AddMIDI_ModalTimer(bpy.types.Operator):
     '''MIDI Sync for Blender VSE (slave)'''
     bl_idname = "addmidi.modal_timer_operator"
@@ -195,19 +220,18 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
         
         if event.type == 'TIMER':	
             timer = time.time()	  
-            
+            msgs = []
             ###################################RECEIVING######################################## 
             if midiin is not None:
                 msg = midiin.get_message()
                 while msg != None:
                     message, deltatime = msg
-                    
                     #Uncomment to debug incoming messages
 #                    timer += deltatime
 #                    print("In :"+"@%0.6f %r" % (timer, message))
-                    
-                    msg = midiin.get_message()   #why this line is necessary (if not, infinite loop) ?
-                   
+                    msgs.append(msg)
+                    time.sleep(0.02)
+                    msg = midiin.get_message()
                     ''' LATER, MIDI Sync mode:           
                     #For the MIDI clock
                     if running_status== 1 and message[0] == 248:
@@ -228,73 +252,167 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
                         print ('JUMP TO FRAME ',frame)
                     '''
                 
-                    #For the MIDI controllers
-                    for item in bpy.context.scene.MIDI_keys:
+                #For the MIDI controllers
+                if  len(msgs) != 0 and len(msgs) < 2:
+                    message, deltatime = msgs[0]
+                    if msgs[0][0][0] == 144: # on event
+                        print("note: %s" % (get_name(message[1])))
 
-                        #New code for CC_7 and CC_14
-                        chan = message[0]-175
-                        cc   = message[1]
-                        if len(message) > 2: 
-                            val  = message[2]
-                        else:
-                            val = 0
-                        
-                        if chan == item.channel:
-                            
-                            #For classic CC_7
-                            if cc == item.controller: 
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[2],item.min,item.max,127)
-                                exec(strtoexec)
-                                                    
-                            elif cc == 6 :
-                                CC_6[chan] = val
+                # Detects intervals till octave
 
-                            elif cc == 38 :
-                                CC_38[chan] = val
-                            
-                            #For NRPN
-                            elif cc == 99:
-                                CC_99[chan] = val
-                            elif cc == 98:
-                                if CC_99[chan]*127 + val == item.controller14:
-                                    if  item.cont_type == 'nrpn14':
-                                        strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan]*127 + CC_38[chan],item.min,item.max,16383)
-                                        exec(strtoexec)
-                                    elif item.cont_type == 'nrpn':
-                                        strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan],item.min,item.max,127)
-                                        exec(strtoexec)
-                            
-                            #For RPN
-                            elif cc == 101:
-                                CC_101[chan] = val
-                            elif cc == 100:
-                                if CC_101[chan]*127 + val == item.controller14: 
-                                    if item.cont_type == 'rpn14':
-                                        strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan]*127 + CC_38[chan],item.min,item.max,16383)
-                                        exec(strtoexec)
-                                    elif item.cont_type == 'rpn':
-                                        strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan],item.min,item.max,127) 
-                                        exec(strtoexec)    
+                #bicord
+                bicord = []
+                if len(msgs) == 2:
+                    for msg in msgs:
+                        message, deltatime = msg
+                        bicord.append(msg)
+                    bicord.sort()
+                    prev_note = 0
+                    for note in bicord:
+                        if note[0][0] == 144: # on event
+                            if prev_note == 0:
+                                prev_note = note
+                            else:
+                                note_name = get_name(note[0][1])
+                                prev_note_name = get_name(prev_note[0][1])
+
+                                distance = note[0][1] - prev_note[0][1]
+                                
+                                if distance % 12 == 0:
+                                    print ("Harmonic Interval of octave %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 11:
+                                    print ("Harmonic Interval of seven major %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 10:
+                                    print ("Harmonic Interval of seven minor %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 9:
+                                    print ("Harmonic Interval of sixth major %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 8:
+                                    print ("Harmonic Interval of sixth minor %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 7:
+                                    print ("Harmonic Interval of fifth %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 6:
+                                    print ("Harmonic Interval of fourth augmented or fifth diminished %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 5 and distance < 12:
+                                    print ("Harmonic Interval of fourth %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 5 and distance > 12:
+                                    print ("Harmonic Interval of undicesima %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 4 and distance < 12:
+                                    print ("Harmonic Interval of major third %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 4 and distance > 12:
+                                    print ("Harmonic Interval of major decima %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 3:
+                                    print ("Harmonic Interval of minor third %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 2 and distance < 12:
+                                    print ("Harmonic Interval of second (tone) %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 2 and distance > 12:
+                                    print ("Harmonic Interval of nona (tone) %s and %s" % (prev_note_name, note_name))
+                                if distance % 12 == 1:
+                                    print ("Harmonic Interval of minor second (semitone) %s and %s" % (prev_note_name, note_name))
+
+                #triads
+                triad = []
+                if len(msgs) == 3:
+                    for msg in msgs:
+                        if msg[0][0] == 144:
+                            message, deltatime = msg
+                            triad.append(msg)
+                    triad.sort()
+                    if triad:
+                        #TODO Add missing chords
+                        # Validate list index
+                        try:
+                            int1 = triad[2][0][1] - triad[1][0][1]
+                            int2 = triad[1][0][1] - triad[0][0][1]
+                        except:
+                            int1 = -1
+                            int2 = -1
                         
-                        #for the notes 
-                        elif (message[0]-143) == item.channel:
-                            if item.cont_type == 'note_on' and message[2] != 0:
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
-                                exec(strtoexec)
-                            if item.cont_type == 'note_off' and message[2] == 0:
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
-                                exec(strtoexec)                               
-                            if item.cont_type == 'on_off':
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
-                                exec(strtoexec)
-                            if item.cont_type == 'vel':
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[2],item.min,item.max,127)
-                                exec(strtoexec)
-                        #support for the native Note Off message        
-                        elif (message[0]-127) == item.channel:
-                            if item.cont_type == 'note_off' or item.cont_type == 'on_off':
-                                strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
-                                exec(strtoexec)
+                        if int1 % 12 == 3 and int2 % 12 == 4:
+                            print("Harmonic Major Triad of %s (%s %s %s)" % (get_name(triad[0][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 3 and int2 % 12 == 3:
+                            print("Harmonic diminished Triad of %s (%s %s %s)" % (get_name(triad[0][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 4 and int2 % 12 == 4:
+                            print("Harmonic Major Augmented Triad of %s (%s %s %s)" % (get_name(triad[0][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 4 and int2 % 12 == 3:
+                            print("Harmonic Minor Triad of %s (%s %s %s)" % (get_name(triad[0][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 3 and int2 % 12 == 5:
+                            print("Harmonic Minor Triad, 2° rivolto of %s (%s %s %s)" % (get_name(triad[1][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 5 and int2 % 12 == 4:
+                            print("Harmonic Minor Triad, 1° rivolto of %s (%s %s %s)" % (get_name(triad[2][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 4 and int2 % 12 == 5:
+                            print("Harmonic Major Triad, 2° rivolto of %s (%s %s %s)" % (get_name(triad[1][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+                        if int1 % 12 == 5 and int2 % 12 == 3:
+                            print("Harmonic Major Triad, 1° rivolto of %s (%s %s %s)" % (get_name(triad[2][0][1]), get_name(triad[0][0][1]), get_name(triad[1][0][1]), get_name(triad[2][0][1])))
+
+
+                '''
+                for item in bpy.context.scene.MIDI_keys:
+                    #New code for CC_7 and CC_14
+                    chan = message[0]-175
+                    cc   = message[1]
+                    if len(message) > 2: 
+                        val  = message[2]
+                    else:
+                        val = 0
+                    
+                    if chan == item.channel:
+                        
+                        #For classic CC_7
+                        if cc == item.controller: 
+                            strtoexec = "bpy.data."+item.name + "=" + rescale(message[2],item.min,item.max,127)
+                            exec(strtoexec)
+                                                
+                        elif cc == 6 :
+                            CC_6[chan] = val
+
+                        elif cc == 38 :
+                            CC_38[chan] = val
+                        
+                        #For NRPN
+                        elif cc == 99:
+                            CC_99[chan] = val
+                        elif cc == 98:
+                            if CC_99[chan]*127 + val == item.controller14:
+                                if  item.cont_type == 'nrpn14':
+                                    strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan]*127 + CC_38[chan],item.min,item.max,16383)
+                                    exec(strtoexec)
+                                elif item.cont_type == 'nrpn':
+                                    strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan],item.min,item.max,127)
+                                    exec(strtoexec)
+                        
+                        #For RPN
+                        elif cc == 101:
+                            CC_101[chan] = val
+                        elif cc == 100:
+                            if CC_101[chan]*127 + val == item.controller14: 
+                                if item.cont_type == 'rpn14':
+                                    strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan]*127 + CC_38[chan],item.min,item.max,16383)
+                                    exec(strtoexec)
+                                elif item.cont_type == 'rpn':
+                                    strtoexec = "bpy.data."+item.name + "=" + rescale(CC_6[chan],item.min,item.max,127) 
+                                    exec(strtoexec)    
+                    
+                    #for the notes 
+                    elif (message[0]-143) == item.channel:
+                        if item.cont_type == 'note_off':
+                            print("note: %s\n" % (c))
+                        if item.cont_type == 'note_on' and message[2] != 0 and message[1] < item.limit_up and message[1] > item.limit_down :
+                            Vstrtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
+                            exec(strtoexec)
+                        if item.cont_type == 'note_off' and message[2] == 0 and message[1] < item.limit_up and message[1] > item.limit_down:
+                            strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
+                            exec(strtoexec)                               
+                        if item.cont_type == 'on_off':
+                            strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
+                            exec(strtoexec)
+                        if item.cont_type == 'vel':
+                            strtoexec = "bpy.data."+item.name + "=" + rescale(message[2],item.min,item.max,127)
+                            exec(strtoexec)
+                    #support for the native Note Off message        
+                    elif (message[0]-127) == item.channel:
+                        if item.cont_type == 'note_off' or item.cont_type == 'on_off':
+                            strtoexec = "bpy.data."+item.name + "=" + rescale(message[1],item.min,item.max,127)
+                            exec(strtoexec)
                 
             #if running_status == 1:
                 #frame = startpos + (clock / 48) * fps 
@@ -311,7 +429,7 @@ class AddMIDI_ModalTimer(bpy.types.Operator):
         # x clock = 1 bar
         # 120 bpm
         # y frames / seconde 
-            
+        '''
            
          
             
@@ -460,18 +578,25 @@ class SCENE_PT_keying_sets(SceneButtonsPanel, SceneKeyingSetsPanel, Panel):
             row3 = col3.row(align=True)
             row3.prop(item, 'min')
             row3.prop(item, 'max')
+            row = layout.row()
+            row.prop(item, 'limit_up')
+            row.prop(item, 'limit_down')
 
 
   
-class AddMIDI_UIPanel(PreferencePanel):
-    bl_label = 'MIDI'
+class USERPREF_PT_midi(Panel):
+    bl_label = 'Midi'
+    bl_space_type='PREFERENCES'
+    bl_region_type='WINDOW'
+    bl_options= {'HIDE_HEADER'}
        
     @classmethod
     def poll(cls, context):
-        prefs = context.preferences
-        return (prefs.active_section == 'SYSTEM')
+        prefs = context.user_preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
-    def draw_props(self, context, layout):
+    def draw(self, context):
+        layout = self.layout
         col = layout.column(align=True)
         col.label(text="MIDI Settings:")
         row = col.row(align=True)
@@ -594,6 +719,8 @@ class AddMIDI_list_as_text(bpy.types.Operator):
                     text.write(str(item.controller)+"\n")
             text.write(str(item.min)+"\n")
             text.write(str(item.max)+"\n")
+            text.write(str(item.limit_up)+"\n")
+            text.write(str(item.limit_down)+"\n")
             text.write("\n")
         
         return{'FINISHED'}
@@ -690,12 +817,16 @@ class AddMIDI_Import_KS_button(bpy.types.Operator):
         def upd_max(self, context):    
             if self.max <= self.min:
                 self.max = self.max + 1 
+
         name : bpy.props.StringProperty(name="Key", default="Unknown")
         channel : bpy.props.IntProperty(name="Channel", min=1, max=16, default=1)
         controller : bpy.props.IntProperty(name="Controller number", min=1, max=128, default=1)
         controller14 : bpy.props.IntProperty(name="Controller number", min=1, max=16384, default=1)
         min : bpy.props.IntProperty(name="Min", default=0, update=upd_min)
         max : bpy.props.IntProperty(name="Max", default=127, update=upd_max)
+        limit_up : bpy.props.IntProperty(name="Up", default=127)
+        limit_down : bpy.props.IntProperty(name="Down", default=127)
+
         cont_type : bpy.props.EnumProperty(name = "Event type", items = MIDI_list_enum)
     bpy.utils.register_class(Scene_MIDI_Items) #necessary ?
     
@@ -782,7 +913,7 @@ def addmidi_handler(scene):
                 bpy.ops.addmidi.start()    
 
 cls = ( AddMIDI_ModalTimer,
-        AddMIDI_UIPanel,
+        USERPREF_PT_midi,
         AddMIDI_StartButton,
         AddMIDI_StopButton,
         AddMIDI_RefreshDevices,
